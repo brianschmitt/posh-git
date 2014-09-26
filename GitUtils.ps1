@@ -1,15 +1,20 @@
 # Inspired by Mark Embling
 # http://www.markembling.info/view/my-ideal-powershell-prompt-with-git-integration
 
-function Get-GitDirectory {
+function Get-GitDirectory ($path) {
+    Join-Path -Path $path -Childpath '.git'
+}
+
+function Get-ProjectDirectory {
     if ($Env:GIT_DIR) {
         $Env:GIT_DIR
     } else {
-        Get-LocalOrParentPath .git
+        Get-LocalOrParentPath
     }
 }
 
-function Get-GitBranch($gitDir = $(Get-GitDirectory), [Diagnostics.Stopwatch]$sw) {
+function Get-GitBranch($prjDir, [Diagnostics.Stopwatch]$sw) {
+    $gitDir = Get-GitDirectory($prjDir)
     if ($gitDir) {
         dbg 'Finding branch' $sw
         $r = ''; $b = ''; $c = ''
@@ -94,10 +99,11 @@ function Get-GitBranch($gitDir = $(Get-GitDirectory), [Diagnostics.Stopwatch]$sw
     }
 }
 
-function Get-GitStatus($gitDir = (Get-GitDirectory)) {
+function Get-GitStatus($prjDir = (Get-ProjectDirectory)) {
     $settings = $Global:GitPromptSettings
     $enabled = (-not $settings) -or $settings.EnablePromptStatus
-    if ($enabled -and $gitDir)
+    $hasgitDir = (Test-Path (Get-GitDirectory($prjDir)))
+    if ($enabled -and $hasgitDir)
     {
         if($settings.Debug) {
             $sw = [Diagnostics.Stopwatch]::StartNew(); Write-Host ''
@@ -118,7 +124,8 @@ function Get-GitStatus($gitDir = (Get-GitDirectory)) {
 
         if($settings.EnableFileStatus -and !$(InDisabledRepository)) {
             dbg 'Getting status' $sw
-            $status = git -c color.status=false status --short --branch 2>$null
+            $projectPath = (Get-Item $prjDir).FullName
+            $status = git -C $projectPath -c color.status=false status --short --branch 2>$null
         } else {
             $status = @()
         }
@@ -160,7 +167,7 @@ function Get-GitStatus($gitDir = (Get-GitDirectory)) {
             }
         }
 
-        if(!$branch) { $branch = Get-GitBranch $gitDir $sw }
+        if(!$branch) { $branch = Get-GitBranch $prjDir $sw }
         dbg 'Building status object' $sw
         $indexPaths = $indexAdded + $indexModified + $indexDeleted + $indexUnmerged
         $workingPaths = $filesAdded + $filesModified + $filesDeleted + $filesUnmerged
@@ -176,7 +183,7 @@ function Get-GitStatus($gitDir = (Get-GitDirectory)) {
             Add-Member -PassThru NoteProperty Unmerged $filesUnmerged
 
         $result = New-Object PSObject -Property @{
-            GitDir          = $gitDir
+            GitDir          = Get-GitDirectory($prjDir)
             Branch          = $branch
             AheadBy         = $aheadBy
             BehindBy        = $behindBy
