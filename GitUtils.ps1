@@ -101,10 +101,13 @@ function Get-GitBranch($prjDir, [Diagnostics.Stopwatch]$sw) {
 
 function Get-GitStatus($prjDir = (Get-ProjectDirectory)) {
     $settings = $Global:GitPromptSettings
-    $enabled = (-not $settings) -or $settings.EnablePromptStatus
-    $hasgitDir = (Test-Path (Get-GitDirectory($prjDir)))
-    if ($enabled -and $hasgitDir)
+    $provider = (Get-Location | Select Provider).Provider.Name
+    $enabled = ((-not $settings) -or $settings.EnablePromptStatus) -and ($provider -like 'FileSystem')
+    
+    if ($enabled)
     {
+        $hasgitDir = (Test-Path (Get-GitDirectory($prjDir)))
+        if (!$hasgitDir) { return }
         if($settings.Debug) {
             $sw = [Diagnostics.Stopwatch]::StartNew(); Write-Host ''
         } else {
